@@ -1,0 +1,34 @@
+pattern,canonical
+food yield,Food Yield
+food quality|enjera|roti|food making,Food Quality
+end use|end-use,End Use Quality
+brew,Brewing Quality
+flour,Flour Quality
+process,Processing Quality
+mill,Milling Quality
+grind,Grinding Ability
+clean,Cleaning Ability
+ferment,Fermentability
+cooking time,Cooking Time
+cooking,Cooking Quality
+taste|flavor,Taste
+aroma|odor,Aroma
+elast,Food Elasticity
+color|colour,Grain Color
+\bsize\b|large grain|small grain|big grain|bold grain,Grain Size
+shape,Grain Shape
+endo,Endosperm Texture
+texture,Texture
+hard,Hardness
+protein,Protein Content
+starch,Starch
+\biron\b,Iron
+nutri,Nutritional Quality
+digest,Digestibility
+tannin,Tannins
+thresh,Threshability
+stora|keeping,Storability
+shatter,Shattering
+germ,Germination
+baking,Baking Quality
+bev,Beverage Quality

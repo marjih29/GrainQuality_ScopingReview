@@ -1,0 +1,4 @@
+﻿pattern,canonical
+\\bdislike\\b|\\bdisliked\\b|\\breject\\b|\\bnot preferred\\b,disliked
+\\bpreferred over\\b|\\bover\\b,comparative
+\\bpositive preference\\b,preferred

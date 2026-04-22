@@ -1,0 +1,23 @@
+﻿pattern,canonical
+\\bwhite\\b|\\bivory\\b|\\bcream\\b|\\bcreamy\\b|\\bpearly white\\b|\\bpale\\b,white/light
+\\bred\\b|\\breddish\\b|\\bbright red\\b|\\bpink\\b|\\bmaroon\\b,red/pink
+\\byellow\\b,yellow
+\\bbrown\\b|\\bdark brown\\b|\\breddish- brown\\b|\\breddish-brown\\b,brown
+\\bblack\\b|\\bpurple\\b,black/purple
+\\bgrey\\b|\\bgray\\b,grey
+\\blarge\\b|\\bbig\\b|\\bbold\\b|\\blarger\\b|\\bbig/large\\b|\\bbold/large\\b,large
+\\bmedium\\b|\\bintermediate\\b,medium
+\\bsmall\\b|\\bsmaller\\b,small
+\\bhard\\b|\\bharder\\b|\\bcorneous\\b|\\bvitreous\\b,hard
+\\bsoft\\b|\\bfloury\\b,soft/floury
+\\bround\\b,round
+\\beasy to thresh\\b|\\bease of threshing\\b,easy
+\\beasy to mill\\b|\\beasy to mill on traditional grinding stone\\b|\\beasy milling\\b,easy
+\\beasy dehulling\\b|\\beasy to dehull\\b,easy
+\\beasy to cook\\b,easy
+\\blong storage\\b|\\blong lasting\\b|\\blong storage time\\b,long
+\\bgood taste\\b|\\bpleasant taste\\b|\\bpleasant\\b|\\bgood\\b,good
+\\bsweet\\b,sweet
+\\bnot bitter\\b,not bitter
+\\bhigh\\b|\\bincreased\\b|\\benhanced\\b,high
+\\blow\\b|\\blower\\b|\\bless\\b,low
