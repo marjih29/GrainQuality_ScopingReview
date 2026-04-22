@@ -114,7 +114,6 @@ trait_dict_map <- list(
 
 method_dict_map <- list(
   Country = country_dictionary,
-  Methods = methods_dictionary,
   Analysis = analysis_dictionary,
   Software = software_dictionary
 )
@@ -144,7 +143,6 @@ formethods <- meta_df %>%
   mutate(Country = gsub("Ethopia", "Ethiopia", Country)) %>%
   rename(StudyID = `Covidence #`) %>%
   dplyr::select(StudyID, Country, Methods, Analysis, Software, VCs, Traits, Crops) %>%
-  separate_rows(Methods, sep = "; ") %>%
   separate_rows(Analysis, sep = ", ") %>%
   separate_rows(Software, sep = "; ")
 
@@ -163,72 +161,100 @@ prefs <- read.csv("myprefs.csv") %>%
   unique()
 
 
-hierarchy <- read.csv(
-  "hierarchy2.csv",
+dictionary <- read.csv(
+  "hierarchy_df.csv",
   stringsAsFactors = FALSE,
   check.names = FALSE
 )
 
-names(hierarchy) <- make.names(names(hierarchy), unique = TRUE)
+# Methods analysis
+coded_methods <- formethods
 
-# Now safe to mutate
-hierarchy <- hierarchy %>%
-  mutate(across(everything(), as.character)) %>%
-  mutate(across(everything(), ~ iconv(., from = "", to = "UTF-8", sub = ""))) %>%
-  mutate(across(everything(), ~ na_if(trimws(.), ""))) %>%
-  rename(
-    level1 = X,
-    level2 = X.1,
-    level3 = X.2,
-    level4 = X.3
+for (col in names(method_dict_map)) {
+  new_col <- paste0(make.names(col), "_std")
+  coded_methods[[new_col]] <- purrr::map_chr(
+    coded_methods[[col]],
+    ~ apply_dict_one(.x, method_dict_map[[col]])
+  )
+}
+
+
+dictionary_clean <- dictionary %>%
+  mutate(
+    matched_term = ifelse(
+      is.na(raw_term) | raw_term == "",
+      category,
+      raw_term
+    )
   ) %>%
-  select(level1, level2, level3, level4)
+  dplyr::select(domain, matched_term, category, group) %>%
+  distinct(domain, matched_term, .keep_all = TRUE)
 
-df_filled <- hierarchy %>%
-  fill(level1) %>%
-  group_by(level1) %>%
-  fill(level2) %>%
-  group_by(level1, level2) %>%
-  fill(level3) %>%
-  ungroup() %>%
-  mutate(across(
-    c(level1, level2, level3, level4),
-    ~ gsub("/", "_", .)
-  ))
-
-df_filled$pathString <- apply(
-  df_filled[, c("level1", "level2", "level3", "level4")],
-  1,
-  function(x) paste(c("Root", x[!is.na(x) & x != ""]), collapse = "/")
+domain_map <- list(
+  Analysis = "Analysis_std",
+  Software = "Software_std",
+  Country  = "Country_std"
 )
 
-df_paths <- df_filled %>%
-  distinct(pathString)
+result <- coded_methods
 
-tree <- as.Node(df_paths)
+for (d in names(domain_map)) {
+  
+  col_name <- domain_map[[d]]
+  
+  dict_sub <- dictionary_clean %>%
+    filter(domain == d)
+  
+  # exact match first
+  exact <- result %>%
+    left_join(
+      dict_sub,
+      by = setNames("matched_term", col_name)
+    )
+  
+  # unmatched rows only
+  unmatched <- exact %>%
+    filter(is.na(category) | category == "") %>%
+    mutate(.row_id = row_number())
+  
+  # fuzzy fallback
+  fuzzy <- unmatched %>%
+    stringdist_left_join(
+      dict_sub,
+      by = setNames("matched_term", col_name),
+      method = "jw",
+      max_dist = 0.15,
+      distance_col = "distance"
+    ) %>%
+    group_by(.row_id) %>%
+    slice_min(order_by = distance, n = 1, with_ties = FALSE) %>%
+    ungroup()
+  
+  # keep exact matches + best fuzzy matches
+  result <- exact %>%
+    filter(!(is.na(category) | category == "")) %>%
+    bind_rows(
+      fuzzy %>%
+        transmute(
+          across(all_of(names(result))),
+          category = category.y,
+          group = group.y
+        )
+    ) %>%
+    rename(
+      !!paste0(d, "_category") := category,
+      !!paste0(d, "_group") := group
+    )
+}
 
-df_lookup <- ToDataFrameTree(
-  tree,
-  "name",
-  "pathString"
-)
+result2 <- result %>% 
+  dplyr::select(-c(Software, Country, Analysis, Methods, domain.x, domain.y, domain.x.x, domain.y.y, domain))
 
-df_lookup <- df_lookup %>%
-  tidyr::separate(
-    pathString,
-    into = c("Root", "level1", "level2", "level3", "level4"),
-    sep = "/",
-    fill = "right"
-  )
+write.csv(result2, "Coded_Methods_hierarchy.csv", row.names = FALSE)
 
-dictionary <- df_lookup %>%
-  filter(!is.na(level2)) %>%
-  transmute(
-    raw_term = level4,
-    category = level3,
-    group = level2,
-    domain = level1
-  )
+
+
+
 
 
 # Trait preferences
@@ -359,22 +385,8 @@ pref_hierarchy <- preferences_std %>%
   dplyr::select(-c(raw_term, domain))
 
 
-# Methods analysis
-coded_methods <- formethods
-
-for (col in names(method_dict_map)) {
-  new_col <- paste0(make.names(col), "_std")
-  coded_methods[[new_col]] <- purrr::map_chr(
-    coded_methods[[col]],
-    ~ apply_dict_one(.x, method_dict_map[[col]])
-  )
-}
 
 
-analysis_hierarchy <- coded_methods %>%
-  left_join(na.omit(dictionary), by = c("Analysis_std" = "raw_term")) %>%
-  dplyr::select(-c(domain))
 
 # Export cleaned data
 write_xlsx(preferences_std, "Cleaned_Preferences.xlsx")
-write_xlsx(analysis_hierarchy, "Cleaned_Analysis.xlsx")

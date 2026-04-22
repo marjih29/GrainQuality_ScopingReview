@@ -14,20 +14,20 @@ kendall,Kendall Correlation/Concordance
 correlation,Correlation Analysis
 regression model|regression analysis|(?<!logistic )regression,Regression
 linear regression,Linear Regression
-step.?down regression|path analysis,Path/Stepwise Regression
-logistic regression|binary logistic|binomial logistic|logit|random parameter logit,Logistic Regression
+path regression,Path Regression
+step.?down regression,Stepwise Regression
+logistic regression|binary logistic|binomial logistic|logit|random parameter logit|logistical|proportional odds,Logistic Regression
 random utility,Random Utility 
 ordered probit|probit regression|binary choice model|multivariate probit,Probit Model
 ols,OLS Regression
-glm|generalized linear model,Generalized Linear Model
+glm|generalized linear model,Linear Regression
 descrip,Descriptive Statistics
-frequency|percentage|average|cross tabulation|cross tabulations|cross tabulate|frequencies,Descriptive Statistics
 narrative synthesis|descriptive summary|thematic framework|thematic code|coding|narratives,Qualitative/Thematic Analysis
 pca|principal component,Principal Component Analysis
 pcoa,Principal Coordinates Analysis
 correspondence analysis,Correspondence Analysis
 multiple factor analysis,Multiple Factor Analysis
-cluster analysis|dendrogram|hierarchical cluster|ward.?s,Cluster Analysis
+cluster analysis|hierarchical cluster,Cluster Analysis
 cluscata|catatis,Check-all-that-apply
 additive main effects and multiplicative interaction|ammi,AMMI Analysis
 gge biplot,G x E
@@ -39,13 +39,13 @@ fish|fisch|fishers exact|fisher.?s exact,Fisher's LSD
 wald test,Wald Test
 shapiro wilk,Shapiro-Wilk test
 Tukey|Turkey,Tukey's HSD Test
-aggregation of farmer responses from perception tests,Perception Test
+aggregation of farmer responses from perception tests,Mean
 Tobit econometric model.,Tobit model
 changes in deviations ratios,Deviations Ratio
-Farmer preference data: vote frequencies; counts of trait mentions (% of appreciations); ANOVA to test effects,Descriptive Statistics
-criteria mentioned by at least 50% of respondents judged as major criteria,Descriptive Statistics
+Farmer preference data: vote frequencies; counts of trait mentions (% of appreciations); ANOVA to test effects,Frequency
+criteria mentioned by at least 50% of respondents judged as major criteria,Frequency
 cross-validation,Cross-Validation
-Quality rating/index constructed from price-derived scores,Price-derived scores
+Quality rating/index constructed from price-derived scores,Rating
 least Significant difference|least significant differences,Least Significant Difference
 likelihood,Maximum Likelihood Estimation
 pair-wise|Pairwise|pairwise,Pair-wise rankings
@@ -59,3 +59,9 @@ thematic frequenciessummaries,Qualitative/Thematic Analysis
 criteria mentioned by at least,Vote
 data was coded|thematic coding based on the research,Data Coding
 each point was considered to be the,Other
+cross tabulation|cross tabulations|cross tabulate,Cross Tabulation
+frequency|percentage|frequencies,Frequency
+average,Mean
+dendrogram,Dendrogram
+ward.?s,Ward's method
+pivot,Pivot_Table

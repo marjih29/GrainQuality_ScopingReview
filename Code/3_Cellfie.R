@@ -80,20 +80,15 @@ choose_ontology_parent <- function(final_source, parents, broader1, default_pare
   if (bad_parent(candidate)) default_parent else candidate
 }
 
-build_hier_df <- function(df, default_parent, use_trait_group_first = FALSE) {
+build_hier_df <- function(df, default_parent) {
   df %>%
     mutate(
       ontology_parent_label = pmap_chr(
-        list(final_source, parents, broader1, trait_group),
-        function(final_source, parents, broader1, trait_group) {
-          if (use_trait_group_first && safe_str(trait_group) != "") {
-            safe_str(trait_group)
-          } else {
+        list(final_source, parents, broader1),
+        function(final_source, parents, broader1) {
             choose_ontology_parent(final_source, parents, broader1, default_parent)
           }
-        }
-      ),
-      parent_id = to_id(ontology_parent_label)
+      parent_id = to_id(ontology_parent_label))
     )
 }
 
@@ -108,8 +103,7 @@ make_parent_sheet <- function(df, root_id, root_label, keep_cols) {
       definition  = "",
       source_id   = "",
       broader1    = "",
-      broader2    = "",
-      trait_group = ""
+      broader2    = ""
     )
   
   root_row <- tibble(
@@ -119,8 +113,7 @@ make_parent_sheet <- function(df, root_id, root_label, keep_cols) {
     definition  = "",
     source_id   = "",
     broader1    = "",
-    broader2    = "",
-    trait_group = ""
+    broader2    = ""
   )
   
   bind_rows(root_row, out) %>%
@@ -162,7 +155,6 @@ cb_raw <- read_excel(INPUT_FILE, sheet = "codebook") %>%
     onto_def      = safe_str(onto_def),
     broader1      = safe_str(broader1),
     broader2      = safe_str(broader2),
-    trait_group   = safe_str(trait_group),
     final_source  = safe_str(final_source),
     parents       = safe_str(parents),
     ancestors     = safe_str(ancestors)
@@ -195,20 +187,19 @@ top_classes <- tibble(
 traits_base <- cb_raw %>%
   filter(variable == "Trait", final_term != "") %>%
   dedup() %>%
-  build_hier_df(default_parent = "Trait", use_trait_group_first = FALSE) %>%
+  build_hier_df(default_parent = "Trait") %>%
   transmute(
     class_id    = to_id(final_term),
     class_label = final_term,
     parent_id   = parent_id,
     definition  = onto_def,
-    trait_group = trait_group,
     source_id   = final_id,
     broader1    = broader1,
     broader2    = broader2,
     ontology_parent_label = ontology_parent_label
   )
 
-trait_parent_cols <- c("class_id","class_label","parent_id","definition","trait_group","source_id","broader1","broader2")
+trait_parent_cols <- c("class_id","class_label","parent_id","definition","source_id","broader1","broader2")
 trait_parents <- make_parent_sheet(traits_base, "Trait", "Trait", trait_parent_cols)
 traits_df <- bind_rows(
   trait_parents,

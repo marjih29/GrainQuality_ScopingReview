@@ -1,0 +1,275 @@
+﻿owl:Thing,,,,
+,Analysis,,,
+,,Descriptive_Statistics,,
+,,,Cross_Tabulation,
+,,,Deviations_ratio,
+,,,Frequency,
+,,,Mean,
+,,,Pivot_Table,
+,,,Rank_Index,
+,,Economic_Analysis,,
+,,,Cost-benefit_ratios,
+,,,Gross_margin_analysis,
+,,,Partial_budgeting,
+,,Multivariate_Analysis,,
+,,,AMMI,
+,,,Dimension_Reduction,
+,,,,Correspondence Analysis
+,,,,Principal Component Analysis
+,,,,Principal Coordinates Analysis
+,,,Stability Analysis,
+,,statistical inference,,
+,,,Hypothesis_Testing,
+,,,,ANOVA
+,,,,Chi-Square Analysis
+,,,,Diversity Index Analysis
+,,,,F-test
+,,,,Fisher's LSD
+,,,,Friedman Test
+,,,,Kruskal-Wallis Test
+,,,,LSD
+,,,,Mann-Whitney Test
+,,,,Newman-Keuls
+,,,,Normality Test
+,,,,Perception Test
+,,,,Rank_Sum_Multiple_Comparison
+,,,,t-test
+,,,,Tukey's HSD Test
+,,,,Wald Test
+,,,,Wilcoxon_Test
+,,,,Cochran\'s_Q
+,,,Model_Evaluation,
+,,,,Cross-validation
+,,,,MLE
+,,,Classification/clustering,
+,,,,Categorical_classification_trees
+,,,,Cluster Analysis
+,,,,Latent_class_model
+,,,,Qualitative/Thematic Analysis
+,,,Correlation/Association,
+,,,,Correlation Analysis
+,,,,Kendall Correlation/Concordance
+,,,,Pearson_Correlation
+,,,,Spearman Correlation
+,,,Rank/choice,
+,,,,Bradley-Terry-Luce Model
+,,,,Conjoint Analysis
+,,,,Dominance_analysis
+,,,,Garrett_Ranking_Test
+,,,,Location Analysis
+,,,,Multiple Factor Analysis
+,,,,Pair-wise rankings
+,,,,Sensory Multivariate Analysis
+,,,Regression/Predictive_Modeling,
+,,,,Bernoulli
+,,,,Conditional Logit Model
+,,,,Linear_Regression
+,,,,Logistic Regression
+,,,,marginal analysis
+,,,,Mixed Logit Model
+,,,,OLS Regression
+,,,,Partial_Least_Squares_Regression
+,,,,Path_Regression
+,,,,Probit Model
+,,,,Random Utility
+,,,,Regression
+,,,,Repeated Binary Response Test
+,,,,Stepwise_Regression
+,,,,Tobit_Model
+,,statistical sampling,,
+,,Qualitative/Thematic_Analysis,,
+,Country,,,
+,,Africa,,
+,,,Central_Africa,
+,,,,Burundi
+,,,,Chad
+,,,,Democratic Republic of the Congo
+,,,East_Africa,
+,,,,Eritrea
+,,,,Ethiopia
+,,,,Kenya
+,,,,Malawi
+,,,,Rwanda
+,,,,Uganda
+,,,,United Republic of Tanzania
+,,,North_Africa,
+,,,,Sudan
+,,,Southern_Africa,
+,,,,Angola
+,,,,Botswana
+,,,,Eswatini
+,,,,Lesotho
+,,,,Mozambique
+,,,,Namibia
+,,,,South Africa
+,,,,Swaziland
+,,,,Zambia
+,,,,Zimbabwe
+,,,West_Africa,
+,,,,Benin
+,,,,Burkina Faso
+,,,,Côte d'Ivoire
+,,,,Ghana
+,,,,Guinea
+,,,,Mali
+,,,,Niger
+,,,,Nigeria
+,,,,Senegal
+,,,,Sierra Leone
+,,Asia,,
+,,,South_Asia,
+,,,,India
+,,,,Nepal
+,,Latin_America_and_the_Caribbean,,
+,,,Central_America,
+,,,,Nicaragua
+,,,South_America,
+,,,,Brazil
+,,Oceania,,
+,,,Australia_and_New_Zealand,
+,,,,Australia
+,Crop,,,
+,,Finger Millet,,
+,,Minor_Millets,,
+,,,Barnyard Millet,
+,,,Fonio,
+,,,Foxtail Millet,
+,,,Kodo Millet,
+,,,Little Millet,
+,,Pearl Millet,,
+,,Sorghum,,
+,Location,,,
+,Method,,,
+,,Experimental,,
+,,,Food Basket Simulation,
+,,,Functional Quality Test,
+,,,Germplasm Collection,
+,,,Sensory Evaluation,
+,,Market_Based,,
+,,,Market Analysis,
+,,Not reported,,
+,,Other,,
+,,Participatory,,
+,,,Mother-Baby Trial,
+,,,Participatory Observation/Appraisal,
+,,,Participatory Varietal Selection,
+,,Qualitative,,
+,,,Case study,
+,,,Focus Group,
+,,,Interview,
+,,,Stakeholder Consultation,
+,,Quantitative,,
+,,,Check-All-That-Apply,
+,,,Questionnaire,
+,,,Ranking,
+,,,Survey,
+,PreferenceDirection,,,
+,PreferenceObservation,,,
+,PublicationType,,,
+,,Book,,
+,,Case study,,
+,,Conference proceedings,,
+,,Dissertation/Thesis,,
+,,Newsletter,,
+,,Poster,,
+,,Report,,
+,,Research article,,
+,,Working paper,,
+,Software,,,
+,,Free,,
+,,,Open_Source,
+,,,,GRETL
+,,,,R
+,,,,VBS
+,,,Proprietary,
+,,,,PLABSTAT
+,,Not reported,,
+,,Paid/proprietary,,
+,,,Excel/XLSTAT,
+,,,GenStat,
+,,,MINITAB,
+,,,NLOGIT,
+,,,NTSYS,
+,,,QDA/MaxQDA,
+,,,S-PLUS,
+,,,SAS,
+,,,Sphinx,
+,,,SPSS,
+,,,Stata,
+,,,Statgraphics,
+,,,WinStat,
+,Trait,,,
+,TraitGroup,,,
+,,Composition/Nutrition,,
+,,,carbohydrate content,
+,,,Digestibility,
+,,,Fiber,
+,,,Iron,
+,,,moisture,
+,,,phenolic compounds,
+,,,Protein Content,
+,,,Starch,
+,,,sugar,
+,,,sugar content,
+,,,Tannins,
+,,End_Use_Quality,,
+,,,Beverage_Quality,
+,,,,Brewing_Quality
+,,,,Fermentability
+,,,,Malting_quality
+,,,,wort
+,,,Cooking_quality,
+,,,Food_Quality,
+,,,,Flour_Quality
+,,,,Food_Yield
+,,,,Porridge_stickiness
+,,Grain Morphology,,
+,,,Endosperm Texture,
+,,,Grain Color,
+,,,,Black
+,,,,Brown
+,,,,Cream
+,,,,Dark
+,,,,Gray
+,,,,Maroon
+,,,,Pink
+,,,,Purple
+,,,,Red
+,,,,Tan
+,,,,White
+,,,,Yellow
+,,,grain length,
+,,,Grain Shape,
+,,,Grain Size,
+,,,Hardness,
+,,,hilum,
+,,,morphology,
+,,,testa,
+,,,Texture,
+,,,Vitreousness,
+,,,weight,
+,,,flour/semolina_ratio,
+,,Postharvest/Handling,,
+,,,Decortication,
+,,,Germination,
+,,,Grinding_ability,
+,,,Milling_Quality,
+,,,Shattering,
+,,,solubility,
+,,,Storability,
+,,,water holding capacity,
+,,,flour/semolina_ratio,
+,,Sensory,,
+,,,Aroma,
+,,,Food Elasticity,
+,,,Taste,
+,,,,sweetness
+,TraitState,,,
+,UseContext,,,
+,ValueChainActor,,,
+,,Brewer,,
+,,Chef/home cook,,
+,,Farmer/grower,,
+,,Processor/miller,,
+,,Producer,,
+,,Traders,,
