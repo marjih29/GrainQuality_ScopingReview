@@ -1,0 +1,355 @@
+---
+title: "Untitled"
+author: "Marjorie Hanneman"
+date: "2026-04-23"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(rcartocolor)
+library(maps)
+library(mapproj)
+library(tidytext)
+library(treemap)
+library(wordcloud)
+library(ggalluvial)
+library(FactoMineR)
+library(factoextra)
+
+
+#[1] "#88CCEE" "#CC6677" "#DDCC77" "#117733" "#332288" "#AA4499" "#44AA99" "#999933" "#882255" "#661100" "#6699CC" "#888888"
+```
+
+```{r}
+load_dict <- function(path) read.csv(path, stringsAsFactors = FALSE)
+
+apply_dict_one <- function(text, dict_tbl,
+                           pattern_col = "pattern",
+                           value_col = "canonical",
+                           ignore_case = TRUE) {
+  if (is.na(text) || str_squish(text) == "") {
+    return(NA_character_)
+  }
+
+  x <- str_squish(as.character(text))
+
+  hits <- dict_tbl[[value_col]][
+    str_detect(
+      string = x,
+      pattern = regex(dict_tbl[[pattern_col]], ignore_case = ignore_case)
+    )
+  ]
+
+  hits <- unique(hits[!is.na(hits) & hits != ""])
+
+  if (length(hits) == 0) {
+    return(x)
+  } else {
+    return(hits[1])
+  }
+}
+```
+
+
+## Dictionaries
+
+```{r}
+trait_dictionary <- load_dict("Dictionaries/trait_dictionary.csv")
+analysis_dictionary <- load_dict("Dictionaries/analysis_dictionary.csv")
+methods_dictionary <- load_dict("Dictionaries/methods_dictionary.csv")
+software_dictionary <- load_dict("Dictionaries/software_dictionary.csv")
+vc_dictionary <- load_dict("Dictionaries/vc_dictionary.csv")
+crop_dictionary <- load_dict("Dictionaries/crop_dictionary.csv")
+country_dictionary <- load_dict("Dictionaries/country_dictionary.csv")
+
+```
+
+```{r}
+df <- read_csv("Extraction_Export_Raw.csv")
+
+long_df <- df %>%
+  rename(StudyID = `Covidence #`) %>%
+  pivot_longer(
+    cols = matches("^\\d+\\s"),
+    names_to = c("entry_id", "field"),
+    names_pattern = "(\\d+)\\s(.+)",
+    values_to = "value"
+  ) %>%
+  pivot_wider(
+    names_from = field,
+    values_from = value
+  )
+
+meta_df <- df[, -c(25:95)]
+
+formethods <- meta_df %>%
+  dplyr::select(-c(DOI, `Reviewer Name`, Title...6, `Journal/Publisher`, `Location(s)`, `List any specific scales or methods named`)) %>%
+  rename(Title = Title...3, Methods = `How were preferences determined?`, Analysis = `How was data analyzed?`, Software = `Was a statistical software used?`, VCs = `Value chain actors included`, Traits = `Grain quality traits included`, Crops = `Crop(s) studied`) %>%
+  mutate(Country = gsub("Ethopia", "Ethiopia", Country)) %>%
+  rename(StudyID = `Covidence #`) %>%
+  dplyr::select(StudyID, Country, Methods, Analysis, Software, VCs, Traits, Crops) %>%
+  separate_rows(Analysis, sep = ", ") %>%
+  separate_rows(Methods, sep = "; ")
+
+
+dictionary <- read.csv(
+  "hierarchy_df.csv",
+  stringsAsFactors = FALSE,
+  check.names = FALSE
+)
+
+```
+
+
+```{r}
+method_dict_map <- list(
+  Country = country_dictionary,
+  Analysis = analysis_dictionary,
+  Software = software_dictionary,
+  Methods = methods_dictionary
+)
+
+
+coded_methods <- formethods 
+
+for (col in names(method_dict_map)) {
+  new_col <- paste0(make.names(col), "_std")
+  coded_methods[[new_col]] <- purrr::map_chr(
+    coded_methods[[col]],
+    ~ apply_dict_one(.x, method_dict_map[[col]])
+  )
+}
+```
+
+```{r}
+
+dictionary_clean <- dictionary %>%
+  mutate(
+    matched_term = ifelse(
+      is.na(raw_term) | raw_term == "",
+      category,
+      raw_term
+    )
+  ) %>%
+  dplyr::select(domain, matched_term, category, group) %>%
+  distinct(domain, matched_term, .keep_all = TRUE) %>% 
+  mutate(domain = case_when(
+    domain == "Method" ~ "Methods",
+    TRUE ~ domain
+  ))
+
+domain_map <- list(
+  Methods = "Methods_std",
+  Analysis = "Analysis_std",
+  Country = "Country_std",
+  Software = "Software_std"
+)
+
+result <- coded_methods
+
+for (d in names(domain_map)) {
+  
+  col_name <- domain_map[[d]]
+  
+  dict_sub <- dictionary_clean %>%
+    filter(domain == d)
+  
+  # exact match first
+  exact <- result %>%
+    left_join(
+      dict_sub,
+      by = setNames("matched_term", col_name)
+    )
+  
+  # unmatched rows only
+  unmatched <- exact %>%
+    filter(is.na(category) | category == "") %>%
+    mutate(.row_id = row_number())
+  
+  # fuzzy fallback
+  fuzzy <- unmatched %>%
+    stringdist_left_join(
+      dict_sub,
+      by = setNames("matched_term", col_name),
+      method = "jw",
+      max_dist = 0.15,
+      distance_col = "distance"
+    ) %>%
+    group_by(.row_id) %>%
+    slice_min(order_by = distance, n = 1, with_ties = FALSE) %>%
+    ungroup()
+  
+  # keep exact matches + best fuzzy matches
+  result <- exact %>%
+    filter(!(is.na(category) | category == "")) %>%
+    bind_rows(
+      fuzzy %>%
+        transmute(
+          across(all_of(names(result))),
+          category = category.y,
+          group = group.y
+        )
+    ) %>%
+    rename(
+      !!paste0(d, "_category") := category,
+      !!paste0(d, "_group") := group
+    )
+}
+
+result <- result %>% 
+  dplyr::select(-c(domain, domain.y, domain.x, domain.x.x, domain.y.y))
+
+```
+
+
+```{r}
+result2 <- result %>% 
+  separate_rows(Traits, sep = "; ") %>% 
+  mutate(Traits = case_when(
+    Traits == "End-use quality (baking, malting, etc.)" ~ "End-use quality",
+    Traits == "Sensory (aroma, taste, appearance, etc.)" ~ "Sensory",
+    Traits == "Grain morphology (e.g. pericarp thickness)" ~ "Morphology",
+    Traits == "Starch, protein, tannins, fiber, and/or fat" ~ "Composition",
+    str_detect(Traits, "Other") ~ "Other",
+    TRUE ~ Traits
+  ))
+
+ggplot(result2,
+       aes(axis1 = Traits, axis2 = Methods_group, axis3 = Analysis_group)) +
+  geom_alluvium(aes(fill = Country), width = 0.2) +
+  geom_stratum(width = 0.2) +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("Traits", "Methods_group", "Analysis_group")) +
+  theme_minimal() +
+  theme(legend.position = "none") 
+  
+```
+
+```{r}
+table(result2$Methods_group, result2$Analysis_group) %>% chisq.test()
+table(result2$Methods_group, result2$Traits) %>% chisq.test()
+
+```
+
+
+```{r}
+result3 <- result2 %>% 
+  filter(Analysis_category != "Pivot_Table") %>% 
+  filter(Analysis_category != "Mean") 
+
+tab <- table(result3$Methods_group, result3$Analysis_category)
+
+ca <- CA(tab, graph = FALSE)
+fviz_ca_biplot(ca)
+```
+
+```{r}
+result2 %>%
+  count(Methods_group, Analysis_category) %>%
+  ggplot(aes(Analysis_category, Methods_group, fill = n)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "#882255") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+result2 %>%
+  count(Traits, Analysis_category) %>%
+  ggplot(aes(Analysis_category, Traits, fill = n)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "#882255") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+result2 %>%
+  filter(!is.na(Analysis_category)) %>%
+  count(Software_category, Analysis_category) %>%
+  ggplot(aes(Analysis_category, Software_category, fill = n)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "gray", high = "#882255") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+result2 %>%
+  filter(!is.na(Country_category)) %>%
+  count(Software_std, Country_category) %>%
+  mutate(Country_category = gsub("_", " ", Country_category)) %>%
+  ggplot(aes(Country_category, Software_std, fill = n)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "gray", high = "#882255") +
+  labs(x = "Country", y = "Software") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+result2 %>%
+  count(Country_category, Methods_group, Analysis_group) %>%
+  ggplot(aes(Analysis_group, Methods_group, fill = n)) +
+  geom_tile() +
+  facet_wrap(~Country_category) +
+  scale_fill_gradient(low = "white", high = "#332288") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+library(ggmosaic)
+
+ggplot(data = result2) +
+  geom_mosaic(aes(x = product(Software_std, Methods_group), fill = Software_std)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+result2 %>% 
+  ggplot(aes(Software_group, fill=Software_std)) + 
+  geom_bar(position = "fill")
+```
+
+```{r}
+library(UpSetR)
+
+df_binary <- result2 %>%
+  mutate(value = 1) %>%
+  pivot_wider(names_from = Methods_group, values_from = value, values_fill = 0)
+
+upset(df_binary)
+```
+
+```{r}
+result2 %>%
+  count(Traits, Methods_group) %>%
+  filter(!is.na(Methods_group)) %>%
+  ggplot(aes(Traits, n, fill = Methods_group)) +
+  geom_bar(stat = "identity", position = "fill") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+result2 %>%
+  count(Traits, Methods_group) %>%
+  filter(!is.na(Methods_group)) %>%
+  ggplot(aes(Traits, fill = Methods_group)) +
+  geom_bar() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+mat <- table(result2$Methods_group, result2$Analysis_category)
+dist_mat <- dist(mat)
+
+hc <- hclust(dist_mat)
+
+plot(hc)
+```
+
+```{r}
+#library(FactoMineR)
+mca <- MCA(result2[, c("Methods_group", "Analysis_group")], graph = F)
+#fviz_mca_biplot(mca)
+plot(mca, choice = "var")
+
+```
+

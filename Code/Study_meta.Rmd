@@ -1,0 +1,913 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+# Load libraries
+
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(rcartocolor)
+library(MaizePal)
+library(MetBrewer)
+library(maps)
+library(ggrepel)
+library(plotly)
+library(treemap)
+library(ggalluvial)
+
+source("Code/CleanDomain.R")
+
+mycols <- rcartocolor::carto_pal(name = "Safe")
+```
+
+# Load and format data
+
+```{r}
+df <- read.csv("Clean_Methods.csv")
+```
+
+# Countries
+
+```{r}
+countries <- df %>%
+  distinct(StudyID, Country) %>%
+  count(Country, name = "count") %>%
+  arrange(desc(count))
+
+world <- map_data("world") %>% 
+  filter(lat > -60) %>% # remove Antarctica
+  filter(lat < 50)
+  
+missing_countries <- setdiff(countries$Country, world$region)
+print(missing_countries)
+
+countries <- countries %>%
+  mutate(Country = case_when(
+    Country == "Cote d'Ivoire" ~ "Ivory Coast",
+    Country == "United Republic of Tanzania" ~ "Tanzania",
+    TRUE ~ Country
+  ))
+
+missing_countries <- setdiff(countries$Country, world$region)
+print(missing_countries)
+
+p <- world %>% 
+  left_join(countries, by = c("region" = "Country")) %>% 
+  ggplot(aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill = "gray77", color = "gray77", linewidth = 0.3) +
+  geom_polygon(aes(fill = count), color = "white", linewidth = 0.3) +
+  scale_fill_carto_c(palette = "Magenta", na.value = "gray77") +
+  coord_map("gilbert", xlim = c(-90, 155), ylim = c(-45, 35)) +
+  labs(
+    fill = "Number of Studies",
+    title = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    panel.grid = element_blank()
+  )
+
+#ggsave("country_map.png", p, width = 10, height = 6, dpi = 300)
+
+```
+
+# Methods Plot
+```{r}
+mycols <- rcartocolor::carto_pal(name = "Safe")
+longcols <- c(mycols, mycols[c(1,7:12)], mycols[c(2:6)])
+
+dfm <- df %>%
+  separate_rows(Methods, sep = ";") %>%      # split into rows
+  mutate(Methods = trimws(Methods), Methods = if_else(grepl("other", Methods, ignore.case = TRUE), "Other",Methods)) %>%
+  distinct(StudyID, Methods) %>%
+  count(Methods) %>%
+  mutate(Methods = factor(Methods, levels = c(setdiff(Methods, "Other"), "Other"))) %>% 
+  mutate(freq = n / 131)
+
+ggplot(dfm, aes(x = reorder(Methods, n), y = n, fill=Methods)) +
+  geom_col(show.legend = F) +
+  scale_fill_manual(values = longcols) +
+  coord_flip() +
+  labs(
+    x = "Method",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+dfc <- df %>%
+  separate_rows(Crops, sep = ";") %>%      
+  mutate(Crops = trimws(Crops)) %>%
+  distinct(StudyID, Crops) %>%
+  count(Crops) %>%
+  mutate(freq = n /131)
+
+crop_country_counts <- df %>%
+  separate_rows(Crops, sep = ";") %>%  
+  mutate(Country_category = gsub("_", " ", Country_category)) %>% 
+  mutate(Crops = trimws(Crops)) %>%
+  distinct(StudyID, Country_category, Crops) %>%
+  count(Country_category, Crops, name = "count") %>%
+  arrange(desc(count))
+```
+
+```{r}
+ggplot(crop_country_counts, aes(x = Crops, y = count, fill = Country_category)) +
+  geom_col(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values = mycols) +
+  labs(
+    x = "Crop",
+    y = "Proportion of studies",
+    fill = "Region",
+    title = "Regional composition of studies within each crop"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+```{r}
+df2 <- read.csv("Clean_Traits.csv")
+
+df2 %>%
+  separate_rows(Methods, sep = ";") %>%      # split into rows
+  mutate(Methods = trimws(Methods), Methods = if_else(grepl("other", Methods, ignore.case = TRUE), "Other",Methods)) %>%
+  distinct(StudyID, Methods, Trait_group) %>%
+  count(Methods, Trait_group) %>%
+  ggplot(aes(axis1 = Methods, axis2 = Trait_group, y = n)) +
+  geom_alluvium() +
+  geom_stratum()
+
+df2 %>%
+  separate_rows(Analysis_group, sep = ";") %>%     
+  filter(!is.na(Analysis_group)) %>%
+  distinct(StudyID, Analysis_group, Trait_group) %>%
+  count(Analysis_group, Trait_group) %>%
+  ggplot(aes(axis1 = Analysis_group, axis2 = Trait_group, y = n)) +
+  geom_alluvium(aes(fill = Analysis_group)) +
+  geom_stratum()
+```
+
+```{r}
+analysis_trait_links <- df2 %>%
+  filter(
+    !is.na(StudyID),
+    !is.na(Analysis_group),
+    !is.na(Trait_category),
+    Analysis_group != "",
+    Trait_category != ""
+  ) %>%
+  distinct(
+    StudyID,
+    Analysis_group,
+    Analysis_category,
+    Trait_group,
+    Trait_category
+  )
+
+analysis_trait_summary <- analysis_trait_links %>%
+  count(
+    Analysis_group,
+    Trait_group,
+    name = "n"
+  ) %>%
+  mutate(
+    overall_percent = round(100 * n / sum(n), 1)
+  )
+
+analysis_trait_by_trait <- analysis_trait_summary %>%
+  group_by(Trait_group) %>%
+  mutate(
+    trait_total = sum(n),
+    percent_within_trait = round(100 * n / trait_total, 1)
+  ) %>%
+  ungroup() %>%
+  arrange(Trait_group, desc(percent_within_trait))
+```
+
+```{r}
+analysis_trait_by_trait %>% 
+  ggplot(aes(
+    x = Trait_group,
+    y = percent_within_trait / 100,
+    fill = Analysis_group
+  )) +
+  geom_col(color = "white", linewidth = 0.3) +
+  geom_text(
+    aes(label = ifelse(percent_within_trait >= 5,
+                       paste0(round(percent_within_trait, 1), "%"),
+                       "")),
+    position = position_stack(vjust = 0.5),
+    size = 3
+  ) +
+ # scale_y_continuous(labels = percent_format()) +
+  labs(
+    x = "Trait group",
+    y = "Percent within trait group",
+    fill = "Analysis group",
+    title = "Analysis types used within each trait group"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major.x = element_blank()
+  )
+```
+
+```{r}
+source("Code/CleanDomain.R")
+
+mymethods <- df2 %>% 
+  separate_rows(Methods, sep = ";") %>%      # split into rows
+  mutate(Methods = trimws(Methods), Methods = if_else(grepl("other", Methods, ignore.case = TRUE), "Other",Methods))
+
+
+methods_only <- mymethods %>%
+  clean_domain(
+    col_name = "Methods",
+    domain_name = "Method",
+    std_dict_path = "Dictionaries/methods_dictionary.csv",
+    hierarchy_path = "hierarchy_df2.csv",
+    out_col = "Methods_clean_std",
+    prefix = "Methods",
+    max_dist = 0.10
+  ) %>% 
+  mutate(
+    Methods_category = ifelse(is.na(Methods_category), "Other", Methods_category),
+    Methods_group = ifelse(is.na(Methods_group), "Other", Methods_group)
+  )
+```
+
+```{r}
+methods_only %>%
+  distinct(StudyID, Methods_category, Trait_group) %>%
+  count(Methods_category, Trait_group) %>% 
+  ggplot(aes(axis1 = Methods_category, axis2 = Trait_group, y = n)) +
+  geom_alluvium(aes(fill = Methods_category)) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("Method", "Trait Group")) +
+  theme_minimal()
+
+methods_only %>%
+  distinct(StudyID, Methods_group, Trait_group) %>%
+  count(Methods_group, Trait_group) %>% 
+  ggplot(aes(axis1 = Methods_group, axis2 = Trait_group, y = n)) +
+  geom_alluvium(aes(fill = Methods_group)) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("Method", "Trait Group")) +
+  theme_minimal()
+
+```
+
+
+```{r}
+method_trait_links <- methods_only %>%
+  filter(
+    !is.na(StudyID),
+    !is.na(Methods_category),
+    !is.na(Trait_category),
+    Methods_category != "",
+    Trait_category != ""
+  ) %>%
+  distinct(
+    StudyID,
+    Methods_group,
+    Methods_category,
+    Trait_group,
+    Trait_category
+  )
+
+method_trait_summary <- method_trait_links %>%
+  count(
+    Methods_group,
+    Trait_group,
+    name = "n"
+  ) %>%
+  mutate(
+    overall_percent = round(100 * n / sum(n), 1)
+  )
+
+method_trait_by_trait <- method_trait_summary %>%
+  group_by(Trait_group) %>%
+  mutate(
+    trait_total = sum(n),
+    percent_within_trait = round(100 * n / trait_total, 1)
+  ) %>%
+  ungroup() %>%
+  arrange(Trait_group, desc(percent_within_trait))
+
+method_trait_by_trait %>% 
+  ggplot(aes(
+    x = Trait_group,
+    y = percent_within_trait / 100,
+    fill = Methods_group
+  )) +
+  geom_col(color = "white", linewidth = 0.3) +
+  geom_text(
+    aes(label = ifelse(percent_within_trait >= 5,
+                       paste0(round(percent_within_trait, 1), "%"),
+                       "")),
+    position = position_stack(vjust = 0.5),
+    size = 3
+  ) +
+ # scale_y_continuous(labels = percent_format()) +
+  labs(
+    x = "Trait group",
+    y = "Percent within trait group",
+    fill = "Methods group",
+    title = "Method types used within each trait group"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major.x = element_blank()
+  )
+```
+
+# Functions
+
+```{r}
+mycols <- rcartocolor::carto_pal(name = "Safe")
+longcols <- c(mycols, mycols[c(1,7:12)], mycols[c(2:6)])
+
+
+make_pair_summary <- function(
+    data,
+    variable1,
+    variable2,
+    id_col = "StudyID",
+    keep_cols = NULL
+) {
+  
+  keep_cols <- unique(c(variable1, variable2, keep_cols))
+  
+  links <- data %>%
+    filter(
+      !is.na(.data[[id_col]]),
+      !is.na(.data[[variable1]]),
+      !is.na(.data[[variable2]]),
+      .data[[variable1]] != "",
+      .data[[variable2]] != ""
+    ) %>%
+    distinct(
+      .data[[id_col]],
+      across(all_of(keep_cols))
+    )
+  
+  summary <- links %>%
+    count(
+      across(all_of(keep_cols)),
+      name = "n"
+    ) %>%
+    group_by(.data[[variable2]]) %>%
+    mutate(
+      variable2_total = sum(n),
+      percent_within_variable2 = round(100 * n / variable2_total, 1)
+    ) %>%
+    ungroup() %>%
+    mutate(
+      variable1 = variable1,
+      variable2 = variable2
+    ) %>%
+    arrange(.data[[variable2]], desc(n))
+  
+  return(summary)
+}
+
+plot_pair_counts <- function(summary_data, variable1, variable2, title = NULL) {
+  
+  ggplot(summary_data, aes(
+    x = .data[[variable2]],
+    y = n,
+    fill = .data[[variable1]]
+  )) +
+    geom_col(color = "white", linewidth = 0.3) +
+    geom_text(
+      aes(label = n),
+      position = position_stack(vjust = 0.5),
+      size = 3
+    ) +
+    labs(
+      x = variable2,
+      y = paste("Count of", variable1),
+      fill = variable1,
+      title = title
+    ) +
+    scale_fill_manual(values = longcols) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      panel.grid.major.x = element_blank()
+    )
+}
+
+plot_pair_summary <- function(summary_data, variable1, variable2, title = NULL) {
+  
+  ggplot(summary_data, aes(
+    x = .data[[variable2]],
+    y = percent_within_variable2 / 100,
+    fill = .data[[variable1]]
+  )) +
+    geom_col(color = "white", linewidth = 0.3) +
+    geom_text(
+      aes(label = ifelse(
+        percent_within_variable2 >= 5,
+        paste0(round(percent_within_variable2, 1), "%"),
+        ""
+      )),
+      position = position_stack(vjust = 0.5),
+      size = 3
+    ) +
+    scale_y_continuous(labels = scales::percent_format()) +
+    scale_fill_manual(values = longcols) +
+    labs(
+      x = variable2,
+      y = paste("Percent within", variable2),
+      fill = variable1,
+      title = title
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      panel.grid.major.x = element_blank()
+    )
+}
+
+plot_pair_alluvial <- function(
+    data,
+    variable1,
+    variable2,
+    id_col = "StudyID",
+    axis1_label = NULL,
+    axis2_label = NULL,
+    title = NULL
+) {
+  
+  if (is.null(axis1_label)) axis1_label <- variable1
+  if (is.null(axis2_label)) axis2_label <- variable2
+  
+  alluvial_data <- data %>%
+    filter(
+      !is.na(.data[[id_col]]),
+      !is.na(.data[[variable1]]),
+      !is.na(.data[[variable2]]),
+      .data[[variable1]] != "",
+      .data[[variable2]] != ""
+    ) %>%
+    distinct(
+      .data[[id_col]],
+      .data[[variable1]],
+      .data[[variable2]]
+    ) %>%
+    count(
+      .data[[variable1]],
+      .data[[variable2]],
+      name = "n"
+    )
+  
+  ggplot(alluvial_data, aes(
+    axis1 = .data[[variable1]],
+    axis2 = .data[[variable2]],
+    y = n
+  )) +
+    geom_alluvium(aes(fill = .data[[variable1]]), alpha = 0.8) +
+    geom_stratum(width = 0.25, color = "grey30") +
+    geom_text(
+      stat = "stratum",
+      aes(label = after_stat(stratum)),
+      size = 3
+    ) +
+    scale_x_discrete(
+      limits = c(axis1_label, axis2_label),
+      expand = c(0.1, 0.1)
+    ) +
+    scale_fill_manual(values = longcols) +
+    labs(
+      title = title,
+      y = "Number of study-level relationships",
+      fill = variable1
+    ) +
+    theme_minimal()
+}
+```
+
+```{r}
+variable2 <-  "Methods_category"
+variable1 <-  "Analysis"
+
+tokeep <- c("Analysis_group", "Analysis_category")
+
+dfcompare <- make_pair_summary(
+  data = methods_only,
+  variable1 = variable1,
+  variable2 = variable2,
+  keep_cols = tokeep
+)
+
+plot_pair_counts(
+  summary_data = dfcompare,
+  variable1 = variable1,
+  variable2 = variable2,
+  title = "Methods categories used within each analysis group"
+)
+
+plot_pair_alluvial(
+  data = methods_only,
+  variable1 = variable1,
+  variable2 = variable2
+)
+
+plot_pair_summary(
+  summary_data = dfcompare,
+  variable1 = variable1,
+  variable2 = variable2,
+  title = "Methods categories used within each analysis group"
+)
+```
+
+```{r}
+analysis_tree_df <- methods_only %>%
+  filter(
+    !is.na(StudyID),
+    !is.na(Methods_category),
+    !is.na(Analysis_group),
+    !is.na(Analysis_category),
+    !is.na(Analysis),
+    Methods_category != "",
+    Analysis_group != "",
+    Analysis_category != "",
+    Analysis != ""
+  ) %>%
+  distinct(
+    StudyID,
+    Methods_category,
+    Analysis_group,
+    Analysis_category,
+    Analysis
+  ) %>%
+  count(
+    Methods_category,
+    Analysis_group,
+    Analysis_category,
+    Analysis,
+    name = "n"
+  )
+
+analysis_tree_df <- analysis_tree_df %>%
+  group_by(Methods_category) %>%
+  mutate(
+    methods_category_total = sum(n),
+    percent_within_method = round(100 * n / methods_category_total, 1)
+  ) %>%
+  ungroup() %>%
+  
+  group_by(Methods_category, Analysis_group) %>%
+  mutate(
+    analysis_group_total = sum(n),
+    percent_within_analysis_group = round(100 * n / analysis_group_total, 1)
+  ) %>%
+  ungroup() %>%
+  
+  group_by(Methods_category, Analysis_group, Analysis_category) %>%
+  mutate(
+    analysis_category_total = sum(n),
+    percent_within_analysis_category = round(100 * n / analysis_category_total, 1)
+  ) %>%
+  ungroup()
+```
+
+```{r}
+library(plotly)
+
+sunburst_df <- analysis_tree_df %>%
+  mutate(
+    path = paste(
+      Methods_category,
+      Analysis_group,
+      Analysis_category,
+      Analysis,
+      sep = "-"
+    )
+  )
+
+make_sunburst_data <- function(data) {
+  
+  level1 <- data %>%
+    group_by(Methods_category) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      label = Methods_category,
+      parent = "",
+      value = value
+    )
+  
+  level2 <- data %>%
+    group_by(Methods_category, Analysis_group) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      label = paste(Methods_category, Analysis_group, sep = " | "),
+      parent = Methods_category,
+      display_label = Analysis_group,
+      value = value
+    )
+  
+  level3 <- data %>%
+    group_by(Methods_category, Analysis_group, Analysis_category) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      label = paste(Methods_category, Analysis_group, Analysis_category, sep = " | "),
+      parent = paste(Methods_category, Analysis_group, sep = " | "),
+      display_label = Analysis_category,
+      value = value
+    )
+  
+  level4 <- data %>%
+    group_by(Methods_category, Analysis_group, Analysis_category, Analysis) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      label = paste(Methods_category, Analysis_group, Analysis_category, Analysis, sep = " | "),
+      parent = paste(Methods_category, Analysis_group, Analysis_category, sep = " | "),
+      display_label = Analysis,
+      value = value
+    )
+  
+  bind_rows(
+    level1 %>% mutate(display_label = label),
+    level2,
+    level3
+  )
+}
+
+sunburst_plot_df <- make_sunburst_data(analysis_tree_df)
+
+plot_ly(
+  data = sunburst_plot_df,
+  ids = ~label,
+  labels = ~display_label,
+  parents = ~parent,
+  values = ~value,
+  type = "sunburst",
+  branchvalues = "total"
+)
+```
+
+```{r}
+make_sunburst_data <- function(data) {
+  
+  level1 <- data %>%
+    group_by(Methods_category) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      id = Methods_category,
+      label = Methods_category,
+      parent = "",
+      value = value,
+      level = "Methods_category",
+      method_root = Methods_category
+    )
+  
+  level2 <- data %>%
+    group_by(Methods_category, Analysis_group) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      id = paste(Methods_category, Analysis_group, sep = " | "),
+      label = Analysis_group,
+      parent = Methods_category,
+      value = value,
+      level = "Analysis_group",
+      method_root = Methods_category
+    )
+  
+  level3 <- data %>%
+    group_by(Methods_category, Analysis_group, Analysis_category) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      id = paste(Methods_category, Analysis_group, Analysis_category, sep = " | "),
+      label = Analysis_category,
+      parent = paste(Methods_category, Analysis_group, sep = " | "),
+      value = value,
+      level = "Analysis_category",
+      method_root = Methods_category
+    )
+  
+  bind_rows(level1, level2, level3)
+}
+
+sunburst_plot_df <- make_sunburst_data(analysis_tree_df)
+
+sunburst_plot_df <- sunburst_plot_df %>%
+  group_by(parent) %>%
+  mutate(
+    parent_total = sum(value),
+    percent_within_parent = round(100 * value / parent_total, 1)
+  ) %>%
+  ungroup()
+
+plot_ly(
+  data = sunburst_plot_df,
+  ids = ~id,
+  labels = ~label,
+  parents = ~parent,
+  values = ~value,
+  type = "sunburst",
+  branchvalues = "total",
+  text = ~paste0(
+    label,
+    "<br>Count: ", value,
+    "<br>Percent within parent: ", percent_within_parent, "%"
+  ),
+  hoverinfo = "text"
+)
+```
+
+```{r}
+trait_method_analysis_df <- methods_only %>%
+  filter(
+    !is.na(StudyID),
+    !is.na(Trait_group),
+    !is.na(Methods_category),
+    !is.na(Analysis_group),
+    !is.na(Analysis_category),
+    Trait_group != "",
+    Methods_category != "",
+    Analysis_group != "",
+    Analysis_category != ""
+  ) %>%
+  distinct(
+    StudyID,
+    Trait_group,
+    Methods_category,
+    Analysis_group,
+    Analysis_category
+  ) %>%
+  count(
+    Trait_group,
+    Methods_category,
+    Analysis_group,
+    Analysis_category,
+    name = "n"
+  )
+
+make_trait_method_analysis_sunburst <- function(data) {
+  
+  level1 <- data %>%
+    group_by(Trait_group) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      id = Trait_group,
+      label = Trait_group,
+      parent = "",
+      value = value,
+      level = "Trait_group"
+    )
+  
+  level2 <- data %>%
+    group_by(Trait_group, Methods_category) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      id = paste(Trait_group, Methods_category, sep = " | "),
+      label = Methods_category,
+      parent = Trait_group,
+      value = value,
+      level = "Methods_category"
+    )
+  
+  level3 <- data %>%
+    group_by(Trait_group, Methods_category, Analysis_group) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      id = paste(Trait_group, Methods_category, Analysis_group, sep = " | "),
+      label = Analysis_group,
+      parent = paste(Trait_group, Methods_category, sep = " | "),
+      value = value,
+      level = "Analysis_group"
+    )
+  
+  level4 <- data %>%
+    group_by(Trait_group, Methods_category, Analysis_group, Analysis_category) %>%
+    summarise(value = sum(n), .groups = "drop") %>%
+    transmute(
+      id = paste(Trait_group, Methods_category, Analysis_group, Analysis_category, sep = " | "),
+      label = Analysis_category,
+      parent = paste(Trait_group, Methods_category, Analysis_group, sep = " | "),
+      value = value,
+      level = "Analysis_category"
+    )
+  
+  bind_rows(level1, level2, level3)
+}
+```
+
+```{r}
+sunburst_trait_df <- make_trait_method_analysis_sunburst(
+  trait_method_analysis_df
+)
+
+sunburst_trait_df <- sunburst_trait_df %>%
+  group_by(parent) %>%
+  mutate(
+    parent_total = sum(value),
+    percent_within_parent = round(100 * value / parent_total, 1)
+  ) %>%
+  ungroup()
+
+plot_ly(
+  data = sunburst_trait_df,
+  ids = ~id,
+  labels = ~label,
+  parents = ~parent,
+  values = ~value,
+  type = "sunburst",
+  branchvalues = "total",
+  hoverinfo = "text"
+)
+```
+
+# Software
+
+```{r}
+df <- read.csv("Clean_Traits2.csv")
+
+source("Code/CleanDomain.R")
+
+software_only <- df %>%
+  clean_domain(
+    col_name = "Software",
+    domain_name = "Software",
+    std_dict_path = "Dictionaries/software_dictionary.csv",
+    hierarchy_path = "hierarchy_df2.csv",
+    out_col = "Software_clean_std",
+    prefix = "Software",
+    max_dist = 0.10
+  ) %>% 
+  dplyr::select(-Software, -Software_clean_std, -grep("hierarchy", names(.)))
+
+mymethods <- software_only %>% 
+  separate_rows(Methods, sep = ";") %>%      # split into rows
+  mutate(Methods = trimws(Methods), Methods = if_else(grepl("other", Methods, ignore.case = TRUE), "Other",Methods))
+
+
+df3 <- mymethods %>%
+  clean_domain(
+    col_name = "Methods",
+    domain_name = "Method",
+    std_dict_path = "Dictionaries/methods_dictionary.csv",
+    hierarchy_path = "hierarchy_df2.csv",
+    out_col = "Methods_clean_std",
+    prefix = "Methods",
+    max_dist = 0.10
+  ) %>% 
+  mutate(
+    Methods_category = ifelse(is.na(Methods_category), "Other", Methods_category),
+    Methods_group = ifelse(is.na(Methods_group), "Other", Methods_group)
+  )
+
+```
+
+```{r}
+variable1 <-  "Software_category"
+variable2 <-  "Software_group"
+
+tokeep <- c("Software_category", "Methods_category")
+
+dfcompare <- make_pair_summary(
+  data = df3,
+  variable1 = variable1,
+  variable2 = variable2,
+  keep_cols = tokeep
+)
+
+plot_pair_counts(
+  summary_data = dfcompare,
+  variable1 = variable1,
+  variable2 = variable2,
+  title = paste(variable1, "used within each", variable2)
+)
+
+plot_pair_alluvial(
+  data = df3,
+  variable1 = variable1,
+  variable2 = variable2
+)
+
+plot_pair_summary(
+  summary_data = dfcompare,
+  variable1 = variable1,
+  variable2 = variable2,
+  title = paste(variable1, "used within each", variable2)
+)
+```

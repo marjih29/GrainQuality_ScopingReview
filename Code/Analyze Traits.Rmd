@@ -1,0 +1,194 @@
+---
+title: "Untitled"
+author: "Marjorie Hanneman"
+date: "2026-04-28"
+output: html_document
+---
+
+```{r}
+library(nnet)
+library(FactoMineR)
+library(factoextra)
+
+df <- read_excel("Cleaned_Preferences.xlsx")
+```
+
+```{r}
+ggplot(df, aes(x = TraitGroup_group)) +
+  geom_bar() +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+```{r}
+df %>%
+  count(VC.Actor_std, TraitGroup_group) %>%
+  group_by(VC.Actor_std) %>%
+  mutate(prop = n / sum(n))
+
+df %>%
+  count(Trait_std, preference_state_std) %>%
+  group_by(Trait_std) %>%
+  mutate(prop = n / sum(n))
+
+df %>%
+  count(Country_category, Trait_std, preference_state_std)
+
+df %>%
+  count(TraitGroup_group, preference_state_std)
+
+df %>%
+  count(VC.Actor_std, TraitGroup_group) %>%
+  group_by(VC.Actor_std) %>%
+  mutate(prop = n / sum(n))
+
+df %>%
+  count(VC.Actor_std, TraitGroup_group) %>%
+  ggplot(aes(VC.Actor_std, TraitGroup_group, fill = n)) +
+  geom_tile()
+
+df %>%
+  group_by(Trait_std, VC.Actor_std) %>%
+  summarise(pref = paste(unique(preference_state_std), collapse = ", "))
+```
+
+```{r}
+tab <- df %>%
+  count(VC.Actor_std, TraitGroup_group) %>%
+  tidyr::pivot_wider(names_from = TraitGroup_group, values_from = n, values_fill = 0)
+
+ca <- CA(tab[,-1], graph = FALSE)
+fviz_ca_biplot(ca)
+```
+
+```{r}
+df %>%
+  count(VC.Actor_std, TraitGroup_group) %>%
+  group_by(VC.Actor_std) %>%
+  mutate(prop = n / sum(n)) %>%
+  ggplot(aes(VC.Actor_std, TraitGroup_group, fill = prop)) +
+  geom_tile() +
+  scale_fill_gradient(low = "#888888", high = "#332288") +
+  labs(fill = "Proportion") +
+  theme_minimal()
+
+df %>%
+  count(TraitGroup_group, preference_state_std) %>%
+  group_by(TraitGroup_group) %>%
+  mutate(prop = n / sum(n)) %>%
+  ggplot(aes(TraitGroup_group, prop, fill = preference_state_std)) +
+  geom_col(position = "fill") +
+  coord_flip()
+
+df %>%
+  count(Trait_std, VC.Actor_std, preference_state_std) %>%
+  ggplot(aes(VC.Actor_std, preference_state_std, fill = n)) +
+  geom_tile() +
+  facet_grid(TraitGroup_category ~ Trait_std)
+
+df %>%
+  count(TraitGroup_group, VC.Actor_std, preference_state_std) %>%
+  ggplot(aes(VC.Actor_std, preference_state_std, fill = n)) +
+  geom_tile() +
+  facet_wrap(~TraitGroup_group)
+
+```
+
+```{r}
+tab <- df %>%
+  count(VC.Actor_std, TraitGroup_group) %>%
+  tidyr::pivot_wider(names_from = TraitGroup_group, values_from = n, values_fill = 0)
+
+ca <- CA(tab[,-1], graph = FALSE)
+
+fviz_ca_biplot(ca, repel = TRUE)
+
+df %>%
+  count(Country_category, TraitGroup_group) %>%
+  group_by(Country_category) %>%
+  mutate(prop = n / sum(n)) %>%
+  ggplot(aes(Country_category, TraitGroup_group, fill = prop)) +
+  geom_tile()
+
+df %>%
+  count(Crop_group, TraitGroup_group) %>%
+  group_by(Crop_group) %>%
+  mutate(prop = n / sum(n)) %>%
+  ggplot(aes(Crop_group, TraitGroup_group, fill = prop)) +
+  geom_tile()
+
+library(igraph)
+library(ggraph)
+
+edges <- df %>%
+  count(VC.Actor_std, Trait_std)
+
+g <- graph_from_data_frame(edges)
+
+ggraph(g, layout = "fr") +
+  geom_edge_link(alpha = 0.3) +
+  geom_node_point() +
+  geom_node_text(aes(label = name), repel = TRUE)
+
+library(ggalluvial)
+
+df %>%
+  count(VC.Actor_std, TraitGroup_group) %>%
+  ggplot(aes(axis1 = VC.Actor_std, axis2 = TraitGroup_group, y = n)) +
+  geom_alluvium(aes(fill = VC.Actor_std)) +
+  geom_stratum()
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggwordcloud)
+library(stringr)
+
+wordcloud_df <- df %>%
+  filter(
+    !is.na(TraitGroup_group),
+    !is.na(preference_state_std),
+    !is.na(VC.Actor_std)
+  ) %>%
+  mutate(
+    TraitGroup_group = str_replace_all(TraitGroup_group, "_", " "),
+    preference_state_std = str_replace_all(preference_state_std, "_", " "),
+    VC.Actor_std = str_replace_all(VC.Actor_std, "_", " ")
+  ) %>%
+  count(TraitGroup_group, VC.Actor_std, preference_state_std, name = "n")
+
+ggplot(
+  wordcloud_df,
+  aes(
+    label = preference_state_std,
+     size = n #,
+    # color = VC.Actor_std
+  )
+) +
+  geom_text_wordcloud_area(
+    rm_outside = TRUE,
+    eccentricity = 0.6
+  ) +
+  facet_wrap(~ TraitGroup_group, scales = "free") +
+  scale_size_area(max_size = 12) +
+  labs(
+    title = "Preference terms by trait group and value chain actor",
+    size = "Count" #,
+   # color = "Value chain actor"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold"),
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank()
+  )
+```
+
+
+```{r}
+view <- df[,c(1,3,5:7,9:11,13,14)]
+```
+

@@ -17,7 +17,7 @@ elast,Food Elasticity
 color|colour,Grain Color
 \bsize\b|large grain|small grain|big grain|bold grain,Grain Size
 shape,Grain Shape
-endo,Endosperm Texture
+endo|vitreous,Endosperm Texture
 texture,Texture
 hard,Hardness
 protein,Protein Content
@@ -32,3 +32,8 @@ shatter,Shattering
 germ,Germination
 baking,Baking Quality
 bev,Beverage Quality
+hilum,Hilum
+testa,Testa
+fiber,Fiber
+mass,weight
+wort,Wort

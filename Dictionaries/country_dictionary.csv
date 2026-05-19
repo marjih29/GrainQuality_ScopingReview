@@ -1,5 +1,6 @@
-"pattern","canonical"
-"^ethopia$","Ethiopia"
-"^cote d ivoire$|^cote d'ivoire$","Côte d'Ivoire"
-"^democratic republic of the congo$|^drc$","Democratic Republic of the Congo"
-"^swaziland$","Swaziland"
+pattern,canonical
+^ethopia$,Ethiopia
+^cote d ivoire$|^cote d'ivoire$,Côte d'Ivoire
+^democratic republic of the congo$|^drc$|^democratic republic of congo$,Democratic Republic of the Congo
+^swaziland$,Swaziland
+^tanzania$,United Republic of Tanzania

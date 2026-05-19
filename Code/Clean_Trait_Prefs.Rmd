@@ -1,0 +1,417 @@
+---
+title: "Untitled"
+author: "Marjorie Hanneman"
+date: "2026-04-28"
+output: html_document
+---
+# Packages
+
+```{r}
+pkgs <- c(
+  "httr", "jsonlite", "dplyr", "purrr", "readr", "writexl",
+  "stringr", "tibble", "tidyr", "ontologyIndex",
+  "fuzzyjoin", "stringdist", "hunspell", "rlang", "rdflib", "furrr", "future", "data.tree"
+)
+
+for (p in pkgs) {
+  if (!requireNamespace(p, quietly = TRUE)) install.packages(p)
+  library(p, character.only = TRUE)
+}
+```
+
+# Functions
+
+```{r}
+load_dict <- function(path) read.csv(path, stringsAsFactors = FALSE)
+
+clean_text <- function(x) {
+  x %>%
+    as.character() %>%
+    str_to_lower() %>%
+    str_replace_all("[[:punct:]]+", " ") %>%
+    str_squish()
+}
+
+apply_dict_one <- function(text, dict_tbl,
+                           pattern_col = "pattern",
+                           value_col = "canonical",
+                           ignore_case = TRUE) {
+  if (is.na(text) || str_squish(text) == "") {
+    return(NA_character_)
+  }
+
+  x <- str_squish(as.character(text))
+
+  hits <- dict_tbl[[value_col]][
+    str_detect(
+      string = x,
+      pattern = regex(dict_tbl[[pattern_col]], ignore_case = ignore_case)
+    )
+  ]
+
+  hits <- unique(hits[!is.na(hits) & hits != ""])
+
+  if (length(hits) == 0) {
+    return(x)
+  } else {
+    return(hits[1])
+  }
+}
+
+apply_dict <- function(text, dict_tbl, col = "canonical") {
+  if (is.na(text) || str_squish(text) == "") {
+    return(NA_character_)
+  }
+
+  x <- str_squish(as.character(text))
+
+  hits <- dict_tbl[[col]][
+    str_detect(
+      string = x,
+      pattern = regex(dict_tbl$pattern, ignore_case = TRUE)
+    )
+  ]
+
+  hits <- unique(hits[!is.na(hits) & hits != ""])
+  if (length(hits) == 0) NA_character_ else hits[1]
+}
+
+
+parse_preference_pos <- function(x) {
+  tibble(Preference_pos = x) %>%
+    mutate(
+      Preference_pos = str_remove_all(
+        Preference_pos,
+        regex(",?\\s*(?:not|no)\\s+[\\w]+(?:\\s+or\\s+[\\w]+)*", ignore_case = TRUE)
+      ),
+      Preference_pos = str_trim(Preference_pos)
+    ) %>%
+    separate_rows(
+      Preference_pos,
+      sep = "(?i),\\s*(?=white|red|brown|black|yellow|grey|gray|pink|tan|dark|light|cream|pale|ivory)"
+    ) %>%
+    separate_rows(
+      Preference_pos,
+      sep = "(?i)\\s+and\\s+(?=white|red|brown|black|yellow|grey|gray|pink|tan|dark|light|cream|pale|ivory)"
+    ) %>%
+    separate_rows(Preference_pos, sep = ";") %>%
+    separate_rows(Preference_pos, sep = "/") %>%
+    mutate(Preference_pos = str_trim(Preference_pos)) %>%
+    filter(!is.na(Preference_pos), Preference_pos != "")
+}
+
+normalize_vc <- function(x) {
+  x %>% 
+    str_replace_all("[/_]", " ") %>%
+    str_to_lower() %>%
+    str_squish()
+}
+
+to_underscore <- function(x) {
+  x %>%
+    as.character() %>%
+    stringr::str_to_lower() %>%
+    stringr::str_replace_all("[[:punct:]]+", " ") %>%
+    stringr::str_squish() %>%
+    stringr::str_replace_all("\\s+", "_")
+}
+
+```
+
+# Load and clean data
+
+```{r}
+df <- read_csv("Extraction_Export_Raw.csv")
+
+long_df <- df %>%
+  rename(StudyID = `Covidence #`) %>%
+  pivot_longer(
+    cols = matches("^\\d+\\s"),
+    names_to = c("entry_id", "field"),
+    names_pattern = "(\\d+)\\s(.+)",
+    values_to = "value"
+  ) %>%
+  pivot_wider(
+    names_from = field,
+    values_from = value
+  )
+
+meta_df <- df[, -c(25:95)]
+
+fortraits <- long_df %>%
+  filter(if_any(c(Trait, Preference), ~ !is.na(.) & . != "")) %>%
+  mutate(across(c(Crop, Location, `VC Actor`, Trait, Preference), ~ str_trim(as.character(.)))) %>%
+  dplyr::select(StudyID, Location, Crop, `VC Actor`, Trait, Preference, Disaggregation) %>%
+  separate_rows(Location, sep = ", ") %>%
+  separate_rows(`VC Actor`, sep = ", ") %>%
+  separate_rows(`VC Actor`, sep = " ; ") %>%
+  separate_rows(Crop, sep = ", ") %>%
+  separate_rows(Crop, sep = " and ") %>%
+  separate_rows(Location, sep = " and ") %>%
+  mutate(Location = gsub("^(and|also)\\s+", "", Location))
+
+prefs <- read.csv("myprefs.csv") %>%
+  unique()
+
+
+dictionary <- read.csv(
+  "hierarchy_df2.csv",
+  stringsAsFactors = FALSE,
+  check.names = FALSE
+)
+
+dictionary_clean <- dictionary %>%
+  mutate(across(
+    c(sub_term, raw_term, category, group),
+    to_underscore
+  )) %>%
+  mutate(across(c(sub_term, raw_term, category, group), ~ na_if(., ""))) %>%
+  select(domain, sub_term, raw_term, category, group) %>%
+  distinct()
+
+trait_dictionary <- load_dict("Dictionaries/trait_dictionary.csv")
+methods_dictionary <- load_dict("Dictionaries/methods_dictionary.csv")
+software_dictionary <- load_dict("Dictionaries/software_dictionary.csv")
+vc_dictionary <- load_dict("Dictionaries/vc_dictionary.csv")
+crop_dictionary <- load_dict("Dictionaries/crop_dictionary.csv")
+country_dictionary <- load_dict("Dictionaries/country_dictionary.csv")
+prefdir_dictionary <- load_dict("Dictionaries/prefdirection.csv")
+
+# Dictionaries for first-pass standardization
+trait_dict_map <- list(
+  Location = country_dictionary,
+  Crop = crop_dictionary,
+  `VC Actor` = vc_dictionary,
+  Trait = trait_dictionary
+)
+```
+
+# standardize traits
+
+```{r}
+# First-pass standardization from your manual dictionaries
+coded_traits <- fortraits
+
+for (col in names(trait_dict_map)) {
+  
+  new_col <- paste0(make.names(col), "_std")
+  
+  coded_traits[[new_col]] <- purrr::map_chr(
+    coded_traits[[col]],
+    ~ apply_dict_one(.x, trait_dict_map[[col]])
+  )
+}
+
+coded_traits <- coded_traits %>%
+  mutate(across(ends_with("_std"), to_underscore))
+
+# Map ontology domains to standardized columns
+trait_map <- list(
+  Country = "Location_std",
+  Crop = "Crop_std",
+  ValueChainActor = "VC.Actor_std",
+  TraitGroup = "Trait_std"
+)
+
+# Add hierarchy category/group using priority:
+# sub_term first, then raw_term, then category, then group
+for (d in names(trait_map)) {
+  
+  col_name <- trait_map[[d]]
+  prefix <- make.names(d)
+  
+  dict_sub <- dictionary_clean %>%
+    filter(domain == d)
+  
+  coded_traits <- coded_traits %>%
+    
+    # 1. match standardized term to sub_term
+    left_join(
+      dict_sub %>%
+        transmute(
+          join_sub = sub_term,
+          cat_sub = raw_term,
+          grp_sub = group
+        ) %>%
+        filter(!is.na(join_sub)) %>%
+        distinct(),
+      by = setNames("join_sub", col_name)
+    ) %>%
+    
+    # 2. if no sub_term match, match to raw_term
+    left_join(
+      dict_sub %>%
+        transmute(
+          join_raw = raw_term,
+          cat_raw = category,
+          grp_raw = group
+        ) %>%
+        filter(!is.na(join_raw)) %>%
+        distinct(),
+      by = setNames("join_raw", col_name)
+    ) %>%
+    
+    # 3. if no raw_term match, match to category
+    left_join(
+      dict_sub %>%
+        transmute(
+          join_cat = category,
+          cat_cat = category,
+          grp_cat = group
+        ) %>%
+        filter(!is.na(join_cat)) %>%
+        distinct(),
+      by = setNames("join_cat", col_name)
+    ) %>%
+    
+    # 4. if no category match, match to group
+    left_join(
+      dict_sub %>%
+        transmute(
+          join_grp = group,
+          cat_grp = category,
+          grp_grp = group
+        ) %>%
+        filter(!is.na(join_grp)) %>%
+        distinct(),
+      by = setNames("join_grp", col_name)
+    ) %>%
+    
+    mutate(
+      !!paste0(prefix, "_category") :=
+        coalesce(cat_sub, cat_raw, cat_cat, cat_grp),
+      
+      !!paste0(prefix, "_group") :=
+        coalesce(grp_sub, grp_raw, grp_cat, grp_grp),
+      
+      !!paste0(prefix, "_domain") := d
+    ) %>%
+    
+    dplyr::select(
+      -cat_sub, -grp_sub,
+      -cat_raw, -grp_raw,
+      -cat_cat, -grp_cat,
+      -cat_grp, -grp_grp
+    )
+}
+
+matched_traits <- coded_traits %>% 
+  dplyr::select(-c(ValueChainActor_category, ValueChainActor_group, Crop_category, ends_with("_domain"), Location, Crop, `VC Actor`, Trait)) 
+```
+
+# grain color
+
+```{r}
+graincolor_pos <- matched_traits %>%
+  filter(Trait_std == "grain_color") %>%
+  mutate(raw_text = Preference) %>%
+  rowwise() %>%
+  mutate(
+    negated_colors = {
+      neg <- str_extract_all(
+        Preference,
+        regex("(?:not|no)\\s+([\\w]+(?:\\s+or\\s+[\\w]+)*)", ignore_case = TRUE)
+      )[[1]]
+      colors_found <- c()
+      for (phrase in neg) {
+        if (str_detect(phrase, regex("\\bblack\\b", ignore_case = TRUE))) colors_found <- c(colors_found, "black")
+        if (str_detect(phrase, regex("\\bpurple\\b", ignore_case = TRUE))) colors_found <- c(colors_found, "purple")
+        if (str_detect(phrase, regex("\\bwhite\\b", ignore_case = TRUE))) colors_found <- c(colors_found, "white")
+        if (str_detect(phrase, regex("\\bred\\b", ignore_case = TRUE))) colors_found <- c(colors_found, "red")
+        if (str_detect(phrase, regex("\\bbrown\\b", ignore_case = TRUE))) colors_found <- c(colors_found, "brown")
+        if (str_detect(phrase, regex("\\byellow\\b", ignore_case = TRUE))) colors_found <- c(colors_found, "yellow")
+        if (str_detect(phrase, regex("\\bgr[ae]y\\b", ignore_case = TRUE))) colors_found <- c(colors_found, "grey")
+        if (str_detect(phrase, regex("\\bpink\\b", ignore_case = TRUE))) colors_found <- c(colors_found, "pink")
+      }
+      if (length(colors_found) > 0) paste(colors_found, collapse = ";") else NA_character_
+    },
+    Preference_pos = str_remove_all(
+      Preference,
+      regex(",?\\s*(?:not|no)\\s+[\\w]+(?:\\s+or\\s+[\\w]+)*", ignore_case = TRUE)
+    ) %>% str_trim()
+  ) %>%
+  ungroup() %>%
+  separate_rows(Preference_pos, sep = "(?i),\\s*(?=white|red|brown|black|yellow|grey|gray|pink|tan|dark|light|cream|pale|ivory)") %>%
+  separate_rows(Preference_pos, sep = "(?i)\\s+and\\s+(?=white|red|brown|black|yellow|grey|gray|pink|tan|dark|light|cream|pale|ivory)") %>%
+  separate_rows(Preference_pos, sep = ";") %>%
+  separate_rows(Preference_pos, sep = "/") %>%
+  mutate(Preference_pos = str_trim(Preference_pos)) %>%
+  filter(Preference_pos != "" & !is.na(Preference_pos)) %>%
+  mutate(
+    trait_dimension = "grain_color",
+    preferred_state = case_when(
+      str_detect(Preference_pos, regex("dark\\s+brown", ignore_case = TRUE)) ~ "brown",
+      str_detect(Preference_pos, regex("light\\s+gr[ae]y", ignore_case = TRUE)) ~ "gray",
+      str_detect(Preference_pos, regex("\\bwhite\\b", ignore_case = TRUE)) ~ "white",
+      str_detect(Preference_pos, regex("\\bred\\b|reddish", ignore_case = TRUE)) ~ "red",
+      str_detect(Preference_pos, regex("\\bbrown\\b", ignore_case = TRUE)) ~ "brown",
+      str_detect(Preference_pos, regex("\\bblack\\b", ignore_case = TRUE)) ~ "black",
+      str_detect(Preference_pos, regex("\\byellow\\b", ignore_case = TRUE)) ~ "yellow",
+      str_detect(Preference_pos, regex("\\bgr[ae]y\\b", ignore_case = TRUE)) ~ "gray",
+      str_detect(Preference_pos, regex("\\bpink\\b", ignore_case = TRUE)) ~ "pink",
+      str_detect(Preference_pos, regex("cream|pale|ivory|pearly|tan|light", ignore_case = TRUE)) ~ "tan/cream",
+      str_detect(Preference_pos, regex("purple|maroon", ignore_case = TRUE)) ~ "purple/maroon",
+      str_detect(Preference_pos, regex("\\bdark\\b", ignore_case = TRUE)) ~ "dark",
+      TRUE ~ "other"
+    ),
+    direction = case_when(
+      str_detect(Preference_pos, regex("dislike|unappealing|avoid|unwanted|undesirable", ignore_case = TRUE)) ~ "excluded",
+      str_detect(Preference_pos, regex("\\bnon-(red|white|brown|black|yellow|grey|gray|pink|dark)\\b", ignore_case = TRUE)) ~ "excluded",
+      str_detect(Preference_pos, regex("\\bfor\\b|\\bwhen\\b|\\bif\\b", ignore_case = TRUE)) ~ "conditional",
+      str_detect(Preference_pos, regex("\\bover\\b|rather\\s+than|preferred\\s+over", ignore_case = TRUE)) ~ "preferred",
+      TRUE ~ "preferred"
+    )
+  )
+
+graincolor_neg <- graincolor_pos %>%
+  filter(!is.na(negated_colors)) %>%
+  distinct(raw_text, negated_colors, VC.Actor_std, Location_std, Crop_std) %>% # ← adjust column names
+  separate_rows(negated_colors, sep = ";") %>%
+  mutate(
+    trait_dimension = "grain_color",
+    preferred_state = negated_colors,
+    direction       = "excluded"
+  ) %>%
+  select(-negated_colors)
+
+colorprefs <- bind_rows(graincolor_pos, graincolor_neg) %>%
+  dplyr::select(-c(
+    negated_colors, Preference_pos, trait_dimension)
+  ) %>%
+  rename(raw_preference = raw_text, preference_state_std = preferred_state, preference_direction = direction)
+```
+
+# non-color preferences
+
+```{r}
+
+non_color_prefs <- coded_traits %>%
+  filter(Trait_std != "grain_color") %>%
+  mutate(
+    raw_preference = Preference,
+    preference_norm = clean_text(Preference),
+    preference_direction = purrr::map_chr(
+      preference_norm,
+      apply_dict,
+      dict_tbl = prefdir_dictionary
+    ),
+    preference_state_std = purrr::map_chr(
+      preference_norm,
+      apply_dict,
+      dict_tbl = prefs,
+      col = "canonical"
+    ),
+    preference_direction = dplyr::coalesce(preference_direction, "preferred"))
+
+#names(colorprefs)[!(names(colorprefs) %in% names(non_color_prefs))]
+
+preferences_std <- non_color_prefs %>%
+  bind_rows(colorprefs) %>% 
+  dplyr::select(-c(ValueChainActor_category, ValueChainActor_group, Crop_category, ends_with("_domain"), Location, Crop, `VC Actor`, Trait, Preference, raw_preference))
+```
+
+```{r}
+write_xlsx(preferences_std, "Cleaned_Preferences.xlsx")
+write.csv(matched_traits, "Cleaned_Traits.csv", row.names = FALSE)
+```
+

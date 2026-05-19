@@ -1,0 +1,166 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+source("Code/Functions.R")
+
+mycols <- rcartocolor::carto_pal(name = "Safe")
+longcols <- c(mycols, mycols[c(1,7:12)], mycols[c(2:6)])
+
+df <- read.csv("CleanExtractionData.csv")
+df <- df[,-c(2:4,6,18,19,26)]
+
+```
+
+```{r}
+mymethods <- df %>% 
+  separate_rows(Methods, sep = ";") %>%      # split into rows
+  mutate(Methods = trimws(Methods), Methods = if_else(grepl("other", Methods, ignore.case = TRUE), "Other",Methods))
+
+
+methods_only <- mymethods %>%
+  clean_domain(
+    col_name = "Methods",
+    domain_name = "Method",
+    std_dict_path = "Dictionaries/methods_dictionary.csv",
+    hierarchy_path = "hierarchy_df2.csv",
+    out_col = "Methods_clean_std",
+    prefix = "Methods",
+    max_dist = 0.10
+  ) %>% 
+  mutate(
+    Methods_category = ifelse(is.na(Methods_category), "Other", Methods_category),
+    Methods_group = ifelse(is.na(Methods_group), "Other", Methods_group)
+  )
+
+df2 <- methods_only %>% 
+  clean_domain(
+    col_name = "Trait",
+    domain_name = "TraitGroup",
+    std_dict_path = "Dictionaries/trait_dictionary.csv",
+    hierarchy_path = "hierarchy_df2.csv",
+    out_col = "Trait_clean_std",
+    prefix = "Trait",
+    max_dist = 0.10
+  )
+```
+
+```{r}
+test <- df %>%
+  separate_rows(Software, sep = "; ") %>%
+  separate_rows(Software, sep = ", ") %>%
+  mutate(Software = str_remove(Software, "^Other:\\s*")) %>% 
+  mutate(across(c(Analysis), ~ str_trim(as.character(.)))) %>%
+  separate_rows(Analysis, sep = ",\\s*") %>% 
+  separate_rows(Analysis, sep = ";\\s*") %>%
+  separate_rows(Analysis, sep = "\\s*and\\s*") %>%
+  separate_rows(Analysis, sep = "\\s*\\+\\s*") %>% 
+  separate_rows(Analysis, sep = "\\s{2,}")
+
+
+trait_map <- c(
+  "Software" = "Software",
+  "Analysis" = "Analysis"
+)
+
+for (d in names(trait_map)) {
+  
+  col_name <- trait_map[[d]]
+  prefix <- make.names(d)
+  
+  test <- clean_domain(
+    data = test,
+    col_name = col_name,
+    domain_name = d,
+    std_dict_path = paste0("Dictionaries/", tolower(d), "_dictionary.csv"),
+    hierarchy_path = "hierarchy_df2.csv",
+    prefix = prefix,
+    use_fuzzy = TRUE,
+    max_dist = 0.15
+  )
+}
+
+mymethods <- test %>% 
+  separate_rows(Methods, sep = ";") %>%      # split into rows
+  mutate(Methods = trimws(Methods), Methods = if_else(grepl("other", Methods, ignore.case = TRUE), "Other",Methods))
+
+
+df3 <- mymethods %>%
+  clean_domain(
+    col_name = "Methods",
+    domain_name = "Method",
+    std_dict_path = "Dictionaries/methods_dictionary.csv",
+    hierarchy_path = "hierarchy_df2.csv",
+    out_col = "Methods_clean_std",
+    prefix = "Methods",
+    max_dist = 0.10
+  ) %>% 
+  mutate(
+    Methods_category = ifelse(is.na(Methods_category), "Other", Methods_category),
+    Methods_group = ifelse(is.na(Methods_group), "Other", Methods_group)
+  )
+
+df3 <- df3 %>% 
+  dplyr::select(c(StudyID, grep("Methods", colnames(df3)), grep("Software", colnames(df3)))) 
+
+```
+
+```{r}
+variable1 <-  "Software_group"
+variable2 <-  "Analysis_group"
+
+tokeep <- c()
+
+dfcompare <- make_pair_summary(
+  data = test,
+  variable1 = variable1,
+  variable2 = variable2,
+  keep_cols = tokeep
+)
+
+plot_pair_counts(
+  summary_data = dfcompare,
+  variable1 = variable1,
+  variable2 = variable2,
+  title = paste(variable1, "used within each", variable2)
+)
+
+plot_pair_alluvial(
+  data = test,
+  variable1 = variable1,
+  variable2 = variable2
+)
+
+plot_pair_summary(
+  summary_data = dfcompare,
+  variable1 = variable1,
+  variable2 = variable2,
+  title = paste(variable1, "used within each", variable2)
+)
+```
+
+```{r}
+software_group_prop <- test %>%
+  filter(
+    !is.na(StudyID),
+    !is.na(Software_group),
+    Software_group != ""
+  ) %>%
+  distinct(StudyID, Software_group) %>%
+  count(Software_group, name = "n") %>%
+  mutate(
+    total = sum(n),
+    proportion = n / total,
+    percent = round(100 * proportion, 1)
+  ) %>%
+  arrange(desc(n))
+
+software_group_prop
+```
+
+
+

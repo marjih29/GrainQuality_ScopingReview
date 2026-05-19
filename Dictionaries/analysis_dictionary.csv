@@ -2,7 +2,7 @@ pattern,canonical
 χ2|chi\s*\^?2|chi\s*[- ]?square|chi squared|chisq,Chi-Square Analysis
 anova|analysis of variance|\bova\b,ANOVA
 manova,MANOVA
-t\s*[- ]?test|student.?s t,t-test
+sample t|t\s*[- ]?test|student.?s t,t-test
 one.?tail t test|one.?sided t test,t-test
 wilcoxon,Wilcoxon Test
 kruskal,Kruskal-Wallis Test
@@ -18,13 +18,14 @@ path regression,Path Regression
 step.?down regression,Stepwise Regression
 logistic regression|binary logistic|binomial logistic|logit|random parameter logit|logistical|proportional odds,Logistic Regression
 random utility,Random Utility 
-ordered probit|probit regression|binary choice model|multivariate probit,Probit Model
+probit|ordered probit|probit regression|binary choice model|multivariate probit,Probit Model
 ols,OLS Regression
 glm|generalized linear model,Linear Regression
 descrip,Descriptive Statistics
 narrative synthesis|descriptive summary|thematic framework|thematic code|coding|narratives,Qualitative/Thematic Analysis
 pca|principal component,Principal Component Analysis
 pcoa,Principal Coordinates Analysis
+plsr,Partial Least Squares Regression
 correspondence analysis,Correspondence Analysis
 multiple factor analysis,Multiple Factor Analysis
 cluster analysis|hierarchical cluster,Cluster Analysis
@@ -33,7 +34,7 @@ additive main effects and multiplicative interaction|ammi,AMMI Analysis
 gge biplot,G x E
 conjoint,Conjoint Analysis
 bradley terry luce|btl,Bradley-Terry-Luce Model
-simpson.?s diversity|shannon.?weaver diversity,Diversity Index
+simp|simpson.?s diversity|shannon.?weaver diversity,Diversity Index Analysis
 cochran.?s q|mcnemar,Cochran's q
 fish|fisch|fishers exact|fisher.?s exact,Fisher's LSD
 wald test,Wald Test
@@ -46,14 +47,15 @@ Farmer preference data: vote frequencies; counts of trait mentions (% of appreci
 criteria mentioned by at least 50% of respondents judged as major criteria,Frequency
 cross-validation,Cross-Validation
 Quality rating/index constructed from price-derived scores,Rating
-least Significant difference|least significant differences,Least Significant Difference
-likelihood,Maximum Likelihood Estimation
+least Significant difference|least significant differences,LSD
+likelihood,MLE
 pair-wise|Pairwise|pairwise,Pair-wise rankings
 Analysis approach emphasized triangulation/cross-validation across actors and states.,Cross-Validation
 finlay,Finlay-Wilkinson
 garrett,Garrett Ranking Test
-GLIMMIX,Mixed Model
-REML,restricted maximum likelihood estimation
+GLIMMIX|mixed model,Regression Predictive Modeling
+REML,MLE
+maximum likelihood,MLE
 The assessment oft he importance of 28 sorghum phenotypic ,Ranking
 thematic frequenciessummaries,Qualitative/Thematic Analysis
 criteria mentioned by at least,Vote
@@ -63,5 +65,6 @@ cross tabulation|cross tabulations|cross tabulate,Cross Tabulation
 frequency|percentage|frequencies,Frequency
 average,Mean
 dendrogram,Dendrogram
-ward.?s,Ward's method
+ward.?s,Cluster Analysis
 pivot,Pivot_Table
+least significant difference, LSD

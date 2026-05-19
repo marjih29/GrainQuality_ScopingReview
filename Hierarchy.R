@@ -13,7 +13,7 @@ library(data.tree)
 
 
 hierarchy <- read.csv(
-  "prelim_hierarchy.csv",
+  "hierarchy__v2.csv",
   stringsAsFactors = FALSE,
   check.names = FALSE
 )
@@ -29,9 +29,10 @@ hierarchy <- hierarchy %>%
     level1 = X,
     level2 = X.1,
     level3 = X.2,
-    level4 = X.3
+    level4 = X.3,
+    level5 = X.4
   ) %>%
-  dplyr::select(level1, level2, level3, level4)
+  dplyr::select(level1, level2, level3, level4, level5)
 
 df_filled <- hierarchy %>%
   fill(level1) %>%
@@ -40,13 +41,16 @@ df_filled <- hierarchy %>%
   group_by(level1, level2) %>%
   fill(level3) %>%
   ungroup() %>%
+  group_by(level1, level2, level3) %>%
+  fill(level4) %>%
+  ungroup() %>%
   mutate(across(
-    c(level1, level2, level3, level4),
+    c(level1, level2, level3, level4, level5),
     ~gsub("/", "_", .)
   ))
 
 df_filled$pathString <- apply(
-  df_filled[, c("level1", "level2", "level3", "level4")],
+  df_filled[, c("level1", "level2", "level3", "level4", "level5")],
   1,
   function(x) paste(c("Root", x[!is.na(x) & x != ""]), collapse = "/")
 )
@@ -67,7 +71,7 @@ df_lookup <- ToDataFrameTree(
 df_lookup <- df_lookup %>%
   tidyr::separate(
     pathString,
-    into = c("Root", "level1", "level2", "level3", "level4"),
+    into = c("Root", "level1", "level2", "level3", "level4", "level5"),
     sep = "/",
     fill = "right"
   )
@@ -75,10 +79,11 @@ df_lookup <- df_lookup %>%
 dictionary <- df_lookup %>%
   filter(!is.na(level2)) %>% 
   transmute(
+    sub_term = level5,
     raw_term = level4,
     category = level3,
     group = level2,
     domain = level1
   )
 
-write.csv(dictionary, "hierarchy_df.csv", row.names = FALSE)
+write.csv(dictionary, "hierarchy_df2.csv", row.names = FALSE)
